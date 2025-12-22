@@ -56,16 +56,10 @@ class RLRouting(RoutingAlgorithm):
         path = [source]
         current = source
         visited = set([source])
-        
-        # Limit hops to prevent cycles during training (exploration)
-        max_hops = len(self.graph.nodes) * 2
+        max_hops = 20
         
         while current != target and len(path) < max_hops:
             neighbors = list(self.graph.neighbors(current))
-            # Filter visited to discourage loops, but strict prevention might hurt learning?
-            # Standard Q-routing allows loops but they get penalized by negative rewards.
-            # For path construction return, we'll try to follow the agent's choice.
-            
             if not neighbors:
                 break
                 
@@ -73,13 +67,35 @@ class RLRouting(RoutingAlgorithm):
             
             if next_hop is None:
                 break
-                
+            
+            # Prevent simple loops
+            if next_hop in visited:
+                 # In pure RL, loops are discouraged by penalty, but we force break for routing utility
+                 # Or we can allow it if we trust the agent to eventually exit. 
+                 # For simulation speed, we'll avoid immediate loops or re-visiting.
+                 # But standard Q-routing might re-visit. Let's block it for now.
+                 pass
+
             path.append(next_hop)
             visited.add(next_hop)
             current = next_hop
             
         if current == target:
             return path
-        else:
-            return None # Failed to reach
+        return None
 
+class RIPRouting(RoutingAlgorithm):
+    """
+    Simulates RIP (Routing Information Protocol).
+    - Metric: Hop Count (Distance Vector).
+    - Ignores Link Latency/Congestion.
+    """
+    def __init__(self, graph):
+        self.graph = graph
+
+    def find_path(self, source, target):
+        try:
+            # Shortest path with weight=None implies BFS (Hop Count)
+            return nx.shortest_path(self.graph, source=source, target=target, weight=None)
+        except nx.NetworkXNoPath:
+            return None

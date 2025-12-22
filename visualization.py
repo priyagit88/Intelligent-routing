@@ -1,14 +1,14 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 
-def visualize_network(graph, trust_model=None, filename="network_topology.png"):
+def visualize_network(graph, trust_model=None, filename="network_topology.png", return_fig=False):
     """
     Visualizes the network topology.
     - Nodes are colored based on reliability/trust if provided.
     - Bad/Low Trust nodes -> Red
     - Good/High Trust nodes -> Green
     """
-    plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(10, 8))
     
     pos = nx.spring_layout(graph, seed=42)
     
@@ -46,8 +46,11 @@ def visualize_network(graph, trust_model=None, filename="network_topology.png"):
     nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels)
     
     plt.title("Network Topology (Green=Trusted, Red=Untrusted)")
-    plt.axis('off')
     
+    if return_fig:
+        plt.close(fig) # Close global pyplot ref but return object
+        return fig
+        
     try:
         plt.savefig(filename)
         print(f"Network visualization saved to {filename}")

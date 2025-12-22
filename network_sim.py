@@ -50,13 +50,30 @@ class NetworkSimulation:
                 
                 self.graph[u][v]['weight'] = new_weight
 
-    def simulate_packet(self, path, trust_model):
-        """Simulates a packet traversing a path"""
+    def simulate_packet(self, path, trust_model, priority=0):
+        """
+        Simulates a packet traversing a path.
+        priority: 0 (Normal/Data), 1 (High/Voice)
+        """
         if not path:
             return False
             
         success = True
         for i in range(len(path) - 1):
+            u, v = path[i], path[i+1]
+            
+            # 1. Congestion Check
+            # If link is highly congested (weight > 50), Low Priority packets might get dropped
+            weight = self.graph[u][v].get('weight', 1)
+            if weight > 50 and priority == 0:
+                # 30% drop chance for Data during congestion
+                if random.random() < 0.3:
+                    logger.debug(f"Packet (Low Prio) dropped due to congestion on {u}->{v}")
+                    return False
+
+            # ... Rest of logic usually handled by "realistic_simulate_packet" patch
+            # But the base method also needs to be robust if called directly
+
             u, v = path[i], path[i+1]
             
             # Simple stochastic model for packet loss
