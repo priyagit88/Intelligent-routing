@@ -8,6 +8,8 @@ from network_sim import NetworkSimulation
 from trust_model import TrustModel
 from routing import ShortestPathRouting, IntelligentRouting, RLRouting
 from rl_agent import QLearningAgent
+from dqn_agent import DQNAgent
+from dqn_routing import DQNRouting
 
 # Disable inner logs for cleaner output
 logging.getLogger("NetworkSim").setLevel(logging.WARNING)
@@ -56,6 +58,8 @@ def run_scenario(algo_name, routing_class, agent=None, congestion=True, packets=
     
     if algo_name == "Q-Learning":
         routing_algo = routing_class(net_sim.graph, agent)
+    elif algo_name == "DQN":
+        routing_algo = routing_class(net_sim.graph, agent)
     elif algo_name == "Intelligent":
         routing_algo = routing_class(net_sim.graph, trust_model)
     else:
@@ -75,7 +79,7 @@ def run_scenario(algo_name, routing_class, agent=None, congestion=True, packets=
         for i in range(packets):
             src, dst = random.choice(flows)
             
-            # RL Learning Step
+            # RL Learning Step (Tabular Q-Learning)
             if training and isinstance(routing_algo, RLRouting):
                 # Custom loop for training
                 path = []
@@ -102,6 +106,61 @@ def run_scenario(algo_name, routing_class, agent=None, congestion=True, packets=
                     u, v = path[idx], path[idx+1]
                     nxt_nbrs = list(net_sim.graph.neighbors(v)) if v in net_sim.graph else []
                     routing_algo.agent.learn(u, v, reward, v, nxt_nbrs)
+
+            # DQN Training Step
+            elif training and isinstance(routing_algo, DQNRouting):
+                path = []
+                curr = src
+                while curr != dst and len(path) < 20:
+                    path.append(curr)
+                    nbrs = list(net_sim.graph.neighbors(curr))
+                    if not nbrs: break
+                    
+                    # DQN logic: choose based on (curr, target, nbrs)
+                    nxt = routing_algo.agent.choose_action(curr, dst, nbrs)
+                    if nxt is None: break
+                    
+                    # Execute
+                    # Since we don't have step-by-step env feedback here, we simulate it
+                    # But we need feedback for learning.
+                    # We'll just record the transition
+                    
+                    # For simplicty in this discrete sim:
+                    # We assume deterministic move to next (unless link failure, but we check path at end)
+                    # We can learn 'online' or 'offline'. Here we learn online hop-by-hop? 
+                    # No, we only know if packet succeeds at the end? 
+                    # Standard Q-routing learns hop-by-hop.
+                    # DQN usually learns from transitions (s,a,r,s').
+                    
+                    curr = nxt
+                    
+                if curr == dst: path.append(dst)
+                
+                # Eval path (Success/Failure)
+                success = net_sim.simulate_packet(path, trust_model)
+                path_latency = sum(net_sim.graph[u][v]['weight'] for u, v in zip(path[:-1], path[1:])) if len(path)>1 else 0
+                
+                if success: stats['success'] += 1
+                stats['total'] = packets
+
+                # Backpropagate reward to memory (Simplified for whole path)
+                reward = 100 if success else -100
+                # Ideally we want latency penalty too -> reward = 100 - latency
+                
+                # Store transitions for replay
+                # We need to reconstruction the path to learn
+                # Re-traverse path to add to memory
+                # Note: This is "offline" learning from the full episode (Monte Carlo style somewhat) 
+                # but applied to DQN replay buffer.
+                curr_replay = src
+                for next_hop in path[1:]:
+                    done = (next_hop == dst)
+                    routing_algo.agent.learn(curr_replay, next_hop, reward, next_hop, dst, done)
+                    curr_replay = next_hop
+                
+                # Update target network periodically
+                if i % 10 == 0:
+                    routing_algo.agent.update_target()
             
             else:
                 # Normal Packet Routing
@@ -131,7 +190,8 @@ def main():
     results = {
         'Standard (Dijkstra)': {},
         'Intelligent (Trust)': {},
-        'Q-Learning (AI)': {}
+        'Q-Learning (AI)': {},
+        'DQN (Deep RL)': {}
     }
 
     # 1. Standard
@@ -160,6 +220,19 @@ def main():
     pdr, lat = run_scenario("Q-Learning", RLRouting, agent=agent, packets=100, training=False)
     results['Q-Learning (AI)'] = {'PDR': pdr, 'Latency': lat}
 
+    # 4. DQN (Train then Test)
+    print("Simulating DQN...")
+    dqn_agent = DQNAgent(num_nodes=20, epsilon=0.5)
+    
+    # Train
+    print("  - Training DQN Agent...")
+    run_scenario("DQN", DQNRouting, agent=dqn_agent, packets=500, training=True)
+    
+    # Test
+    dqn_agent.epsilon = 0.05
+    pdr, lat = run_scenario("DQN", DQNRouting, agent=dqn_agent, packets=100, training=False)
+    results['DQN (Deep RL)'] = {'PDR': pdr, 'Latency': lat}
+
     # Plotting
     labels = list(results.keys())
     pdrs = [results[l]['PDR'] for l in labels]
@@ -168,7 +241,7 @@ def main():
     x = np.arange(len(labels))
     width = 0.35
 
-    fig, ax1 = plt.subplots(figsize=(10, 6))
+    fig, ax1 = plt.subplots(figsize=(12, 6))
 
     color = 'tab:blue'
     ax1.set_xlabel('Routing Protocol')

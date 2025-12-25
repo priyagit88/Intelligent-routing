@@ -3,3 +3,5 @@ simpy
 matplotlib
 pandas
 numpy
+streamlit
+torch
