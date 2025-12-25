@@ -213,11 +213,11 @@ def main():
     
     # Train
     print("  - Training RL Agent...")
-    run_scenario("Q-Learning", RLRouting, agent=agent, packets=500, training=True)
+    run_scenario("Q-Learning", RLRouting, agent=agent, packets=50, training=True)
     
     # Test
     agent.epsilon = 0.05
-    pdr, lat = run_scenario("Q-Learning", RLRouting, agent=agent, packets=100, training=False)
+    pdr, lat = run_scenario("Q-Learning", RLRouting, agent=agent, packets=20, training=False)
     results['Q-Learning (AI)'] = {'PDR': pdr, 'Latency': lat}
 
     # 4. DQN (Train then Test)
@@ -226,11 +226,11 @@ def main():
     
     # Train
     print("  - Training DQN Agent...")
-    run_scenario("DQN", DQNRouting, agent=dqn_agent, packets=500, training=True)
+    run_scenario("DQN", DQNRouting, agent=dqn_agent, packets=50, training=True)
     
     # Test
     dqn_agent.epsilon = 0.05
-    pdr, lat = run_scenario("DQN", DQNRouting, agent=dqn_agent, packets=100, training=False)
+    pdr, lat = run_scenario("DQN", DQNRouting, agent=dqn_agent, packets=20, training=False)
     results['DQN (Deep RL)'] = {'PDR': pdr, 'Latency': lat}
 
     # Plotting

@@ -139,7 +139,7 @@ class DQNAgent:
         target_q = current_q.copy()
         for i in range(self.batch_size):
             target_val = rewards[i] + (1 - dones[i]) * self.gamma * max_next_q[i]
-            target_q[i, actions[i]] = target_val
+            target_q[i, actions[i]] = target_val.item()
             
         self.model.train(states, target_q)
         
